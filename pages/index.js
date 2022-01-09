@@ -5,8 +5,97 @@ import { useEffect, useState, useRef } from "react";
 import Layout from '../components/Layout'
 import CardButtons from '../components/CardButtons'
 import CardHome from '../components/CardHome'
+import { useWeb3React, Web3ReactProvider } from "@web3-react/core";
+import { InjectedConnector } from "@web3-react/injected-connector";
+import { WalletConnectConnector } from "@web3-react/walletconnect-connector";
+import { Web3Provider } from "@ethersproject/providers";
+import useLocalStorage from '../hooks/useLocalStorage';
+import { MetamaskIcon, WalletConnectIcon } from '../components/icons'
 
-export default function Home() {
+
+const injected = new InjectedConnector({ supportedChainIds: [1, 3, 4, 5, 42] });
+const wcConnector = new WalletConnectConnector({
+  infuraId: "5cfa495fb4759daabe91247f9847f8b0",
+});
+
+const ConnectorNames = {
+  Injected: 'injected',
+  WalletConnect: 'walletconnect',
+}
+
+const W3Operations = {
+  Connect: "connect",
+  Disconnect: "disconnect",
+}
+
+function getLibrary(provider) {
+  const library = new Web3Provider(provider);
+  // library.pollingInterval = 12000;
+  return library;
+}
+
+export default function WrapperHome() {
+  return (
+    <Web3ReactProvider getLibrary={getLibrary}>
+      <Home />
+    </Web3ReactProvider>
+  )
+}
+
+function Home() {
+  const web3React = useWeb3React();
+  const { active, activate, error } = web3React;
+  const [loaded, setLoaded] = useState(false);
+
+  const [latestOp, setLatestOp] = useLocalStorage("latest_op", "");
+  const [latestConnector, setLatestConnector] = useLocalStorage(
+    "latest_connector",
+    ""
+  );
+  // console.log(web3React);
+
+  useEffect(() => {
+    if (latestOp == "connect" && latestConnector == "injected") {
+      injected
+        .isAuthorized()
+        .then((isAuthorized) => {
+          setLoaded(true);
+          if (isAuthorized && !web3React.active && !web3React.error) {
+            web3React.activate(injected);
+          }
+        })
+        .catch(() => {
+          setLoaded(true);
+        });
+    } else if (latestOp == "connect" && latestConnector == "walletconnect") {
+      web3React.activate(wcConnector);
+    }
+  }, []);
+
+  const getTruncatedAddress = (address) => {
+    if (address && address.startsWith("0x")) {
+      return address.substr(0, 4) + "..." + address.substr(address.length - 4);
+    }
+    return address;
+  };
+
+  const getNetwork = (chainId) => {
+    switch (chainId) {
+      case 1:
+        return "Mainnet";
+      case 3:
+        return "Ropsten";
+      case 4:
+        return "Rinkeby";
+      case 5:
+        return "Goerli";
+      case 42:
+        return "Kovan";
+      default:
+        return `unknown network ${chainId}`;
+    }
+  };
+
   return (
     <div>
       <Head>
@@ -18,8 +107,98 @@ export default function Home() {
       <main>
         <Layout>
 
-          <CardButtons />
-          {/* <CardHome /> */}
+          {!web3React.active ? (
+
+            <div className="drop-shadow-2xl rounded-2xl p-4 bg-white dark:bg-gray-900 w-[400px] h-[300px] m-auto relative">
+              <div className="flex flex-col w-full h-full text-center">
+
+                <h1 className="mt-[30px] mb-[50px] sm:text-xl text-base font-bold text-gray-900">Connect your wallet</h1>
+
+                <button onClick={() => {
+                  setLatestConnector(ConnectorNames.Injected);
+                  setLatestOp(W3Operations.Connect);
+                  web3React.activate(injected);
+                }} className="metac flex justify-between items-center mx-auto px-5 pt-4 pb-3 w-[300px] h-[60px] cursor-pointer transition ease-in duration-200 normal-case rounded-[10px] text-white text-base font-bold focus:outline-none">
+
+                  MetaMask
+
+                  <MetamaskIcon className="w-8 h-8" />
+
+                </button>
+
+
+                <hr className="my-2 border-0 bg-white text-gray-500 h-px" />
+
+                <button onClick={ () => {
+                  setLatestConnector(ConnectorNames.WalletConnect);
+                  setLatestOp(W3Operations.Connect);
+                  web3React.activate(wcConnector);
+                }} className="walletc flex justify-between items-center mx-auto px-5 pt-4 pb-3 w-[300px] h-[60px] cursor-pointer transition ease-in duration-200 normal-case rounded-[10px] text-white text-base font-bold focus:outline-none">
+
+                  WalletConnect
+
+                  <WalletConnectIcon className="w-8 h-8" />
+
+                </button>
+                <style jsx>{`
+                  .metac {
+                    background-image: linear-gradient(267.54deg, rgb(255, 220, 36) 1.63%, rgb(255, 92, 0) 98.05%);
+                  }
+                  .walletc {
+                    background-image: linear-gradient(267.56deg, rgb(5, 0, 255) 0%, rgb(143, 0, 255) 97.07%);
+                  }
+                `}</style>
+
+              </div>
+            </div>
+
+            // <>
+            //   <CardButtons setLatestConnector={setLatestConnector} setLatestOp={setLatestOp} web3ReactActive={web3React.activate(injected)} />
+            // </>
+
+          ) : null}
+          
+          {web3React.active ? (
+
+            <div className="drop-shadow-2xl rounded-2xl p-4 bg-white dark:bg-gray-900 w-[400px] h-[300px] m-auto relative">
+              <div className="flex flex-col w-full h-full space-y-4 text-center">
+
+                <h1 className="sm:text-xl text-base font-bold text-gray-900">Welcome to Web 3</h1>
+
+                <div className="flex flex-col content-start justify-center w-auto h-auto">
+
+                  <p className="font-bold leading-relaxed text-[#afafaf] text-base">Network</p>
+
+                  <h1 className="sm:text-xl text-base font-bold text-gray-900">{getNetwork(web3React.chainId)}</h1>
+
+                </div>
+
+                <div className="flex flex-col content-start justify-center w-auto h-auto">
+
+                  <p className="font-bold leading-relaxed text-[#afafaf] text-base">Address</p>
+
+                  <h1 className="sm:text-xl text-base font-bold text-gray-900">{getTruncatedAddress(web3React.account)}</h1>
+
+                </div>
+
+                <button onClick={() => {
+                  setLatestOp(W3Operations.Disconnect);
+                  web3React.deactivate();
+                }} className="flex items-center justify-center mx-auto pt-3 pb-3 w-[300px] h-[60px] cursor-pointer transition ease-in duration-200 normal-case rounded-[10px] text-[#f96666] text-xl font-black focus:outline-none">
+
+                  Disconnect
+
+                </button>
+
+              </div>
+            </div>
+
+            // <>
+            //   <CardHome Net={getNetwork(web3React.chainId)} Adr={getTruncatedAddress(web3React.account)} />
+            // </>
+            
+          ) : null}
+          
 
         </Layout>
       </main>
